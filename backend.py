@@ -17,7 +17,11 @@ def scrape():
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
-            args=["--no-sandbox", "--disable-dev-shm-usage"]
+            args=[
+                "--no-sandbox",
+                "--disable-dev-shm-usage",
+                "--disable-blink-features=AutomationControlled"
+            ]
         )
 
         context = browser.new_context(
@@ -26,25 +30,41 @@ def scrape():
 
         page = context.new_page()
 
-        # 🔥 interceptar requests
-        def handle_request(request):
-            url = request.url
-
-            if "player.html" in url and "mdata=" in url:
-                results.append({
-                    "player": url
-                })
-
-        page.on("request", handle_request)
-
         page.goto("https://www.fctv33hd.best/es/football.html", timeout=60000)
 
-        # esperar que cargue todo
-        page.wait_for_timeout(15000)
+        page.wait_for_timeout(10000)
+
+        # 🔥 buscar elementos clickeables reales
+        elements = page.query_selector_all("a")
+
+        for el in elements[:10]:  # limitar para no romper Render
+            try:
+                href = el.get_attribute("href")
+
+                if href and "football" not in href:
+                    continue
+
+                # escuchar requests mientras navegamos
+                def handle_request(request):
+                    if "player.html" in request.url:
+                        results.append({
+                            "player": request.url
+                        })
+
+                page.on("request", handle_request)
+
+                el.click(timeout=5000)
+                page.wait_for_timeout(5000)
+
+                page.go_back()
+                page.wait_for_timeout(3000)
+
+            except:
+                pass
 
         browser.close()
 
-    # eliminar duplicados
+    # limpiar duplicados
     unique = []
     seen = set()
 
