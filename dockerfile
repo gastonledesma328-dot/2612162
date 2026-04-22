@@ -1,13 +1,9 @@
-FROM mcr.microsoft.com/playwright/python:v1.40.0-focal
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Copiar requirements.txt
 COPY requirements.txt .
-
-# Instalar dependencias Python
-RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 
