@@ -12,8 +12,7 @@ DATA = {
 def scrape():
     global DATA
 
-    matches = []
-    players = []
+    results = []
 
     with sync_playwright() as p:
         browser = p.chromium.launch(
@@ -33,34 +32,28 @@ def scrape():
 
         links = page.query_selector_all("a[href*='/football/']")
 
-        for a in links[:10]:  # limitamos por Render
-            try:
-                href = a.get_attribute("href")
+        match_links = []
 
-                if not href:
-                    continue
+        for a in links[:10]:  # limitar por rendimiento
+            href = a.get_attribute("href")
+            if href:
+                match_links.append("https://www.fctv33hd.best" + href)
 
-                full_url = "https://www.fctv33hd.best" + href
-
-                matches.append(full_url)
-
-            except:
-                pass
-
-        # 🔹 PASO 2: entrar a cada partido y capturar player
-        for match in matches:
+        # 🔹 PASO 2: entrar a cada partido
+        for match in match_links:
             try:
                 page.goto(match, timeout=60000)
-                page.wait_for_timeout(8000)
 
-                # buscar iframe
+                # 🔥 esperar el iframe REAL
+                page.wait_for_selector("iframe", timeout=15000)
+
                 iframe = page.query_selector("iframe")
 
                 if iframe:
                     src = iframe.get_attribute("src")
 
-                    if src and "player" in src:
-                        players.append({
+                    if src and "player.html" in src:
+                        results.append({
                             "match": match,
                             "player": src
                         })
@@ -70,7 +63,7 @@ def scrape():
 
         browser.close()
 
-    DATA["matches"] = players
+    DATA["matches"] = results
 
 def loop_scraper():
     while True:
