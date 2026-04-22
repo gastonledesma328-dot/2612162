@@ -5,9 +5,8 @@ import time
 
 app = FastAPI()
 
-DATA = {
-    "matches": []
-}
+DATA = {"matches": []}
+
 
 def scrape():
     global DATA
@@ -26,34 +25,28 @@ def scrape():
 
         page = context.new_page()
 
-        # PASO 1: obtener partidos
+        # PASO 1
         page.goto("https://www.fctv33hd.best/es/football.html", timeout=60000)
         page.wait_for_timeout(8000)
 
         links = page.query_selector_all("a[href*='/football/']")
-
         match_links = []
 
         for a in links[:10]:
-            try:
-                href = a.get_attribute("href")
-                if href:
-                    match_links.append("https://www.fctv33hd.best" + href)
-            except:
-                pass
+            href = a.get_attribute("href")
+            if href:
+                match_links.append("https://www.fctv33hd.best" + href)
 
-        # PASO 2: entrar a cada partido
+        # PASO 2
         for match in match_links:
             try:
                 page.goto(match, timeout=60000)
-
                 page.wait_for_timeout(8000)
 
                 frames = page.query_selector_all("iframe")
 
                 for f in frames:
                     src = f.get_attribute("src")
-
                     if src and "player.html" in src:
                         results.append({
                             "match": match,
@@ -61,22 +54,22 @@ def scrape():
                         })
 
             except Exception as e:
-                print("Error en match:", match, e)
-                continue
+                print("Error:", e)
 
         browser.close()
 
     DATA["matches"] = results
-    
+
+
 def loop_scraper():
     while True:
         try:
             scrape()
-            print("Scrape actualizado:", len(DATA["matches"]))
+            print("Scrape OK:", len(DATA["matches"]))
         except Exception as e:
-            print("Error:", e)
+            print("Error general:", e)
 
-        time.sleep(300)  # cada 5 minutos
+        time.sleep(300)
 
 
 threading.Thread(target=loop_scraper, daemon=True).start()
@@ -88,5 +81,5 @@ def home():
 
 
 @app.get("/matches")
-def get_matches():
+def matches():
     return DATA
