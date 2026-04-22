@@ -1,5 +1,6 @@
-fastapi==0.104.1
-uvicorn==0.24.0
-playwright==1.40.0
-pydantic==2.5.0
-python-multipart==0.0.6
+fastapi==0.115.0
+uvicorn[standard]==0.30.0
+playwright==1.46.0
+pydantic==2.9.2
+pydantic-core==2.23.4
+python-multipart==0.0.12
