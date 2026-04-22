@@ -47,7 +47,15 @@ def scrape():
                 # 🔥 esperar el iframe REAL
                 page.wait_for_selector("iframe", timeout=15000)
 
-                iframe = page.query_selector("iframe")
+                frames = page.query_selector_all("iframe")
+
+for f in frames:
+    src = f.get_attribute("src")
+    if src and "player.html" in src:
+        results.append({
+            "match": match,
+            "player": src
+        })
 
                 if iframe:
                     src = iframe.get_attribute("src")
