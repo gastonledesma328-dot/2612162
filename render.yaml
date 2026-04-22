@@ -1,7 +1,24 @@
 services:
   - type: web
-    name: scraper-api
-    env: python
+    name: football-scraper-api
+    runtime: python
+    repo: https://github.com/tu-usuario/tu-repo
     plan: free
-    buildCommand: "pip install -r requirements.txt"
-    startCommand: "./start.sh"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0
+      - key: SCRAPE_INTERVAL
+        value: 300
+      - key: MAX_MATCHES
+        value: 50
+      - key: PAGE_TIMEOUT
+        value: 60000
+      - key: WAIT_AFTER_LOAD
+        value: 5000
+      - key: BASE_URL
+        value: https://www.fctv33hd.best
+    buildCommand: |
+      pip install -r requirements.txt
+      playwright install chromium
+      playwright install-deps
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
