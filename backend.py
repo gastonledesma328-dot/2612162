@@ -13,7 +13,10 @@ def scrape():
     global DATA
 
     with sync_playwright() as p:
-        browser = p.chromium.launch(headless=True)
+        browser = p.chromium.launch(
+            headless=True,
+            args=["--no-sandbox", "--disable-dev-shm-usage"]
+        )
 
         context = browser.new_context(
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
@@ -22,22 +25,32 @@ def scrape():
         page = context.new_page()
 
         page.goto("https://www.fctv33hd.best/es/football.html", timeout=60000)
-        page.wait_for_timeout(5000)
 
-        links = page.query_selector_all("a")
+        # esperar que cargue JS
+        page.wait_for_timeout(10000)
 
         matches = []
 
-        for a in links:
-            try:
-                href = a.get_attribute("href")
-                text = a.inner_text()
+        # 🔥 buscar bloques de partidos (ajustable)
+        items = page.query_selector_all("div, li")
 
-                if href and "player" in href:
+        for item in items:
+            try:
+                text = item.inner_text().strip()
+
+                # filtramos cosas vacías o irrelevantes
+                if len(text) < 5:
+                    continue
+
+                # buscar si tiene onclick o evento
+                onclick = item.get_attribute("onclick")
+
+                if onclick:
                     matches.append({
-                        "title": text.strip(),
-                        "player": href
+                        "title": text,
+                        "player": onclick
                     })
+
             except:
                 pass
 
