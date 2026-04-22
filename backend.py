@@ -12,16 +12,13 @@ DATA = {
 def scrape():
     global DATA
 
-    results = []
+    matches = []
+    players = []
 
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
-            args=[
-                "--no-sandbox",
-                "--disable-dev-shm-usage",
-                "--disable-blink-features=AutomationControlled"
-            ]
+            args=["--no-sandbox", "--disable-dev-shm-usage"]
         )
 
         context = browser.new_context(
@@ -30,51 +27,50 @@ def scrape():
 
         page = context.new_page()
 
+        # 🔹 PASO 1: obtener partidos
         page.goto("https://www.fctv33hd.best/es/football.html", timeout=60000)
+        page.wait_for_timeout(8000)
 
-        page.wait_for_timeout(10000)
+        links = page.query_selector_all("a[href*='/football/']")
 
-        # 🔥 buscar elementos clickeables reales
-        elements = page.query_selector_all("a")
-
-        for el in elements[:10]:  # limitar para no romper Render
+        for a in links[:10]:  # limitamos por Render
             try:
-                href = el.get_attribute("href")
+                href = a.get_attribute("href")
 
-                if href and "football" not in href:
+                if not href:
                     continue
 
-                # escuchar requests mientras navegamos
-                def handle_request(request):
-                    if "player.html" in request.url:
-                        results.append({
-                            "player": request.url
+                full_url = "https://www.fctv33hd.best" + href
+
+                matches.append(full_url)
+
+            except:
+                pass
+
+        # 🔹 PASO 2: entrar a cada partido y capturar player
+        for match in matches:
+            try:
+                page.goto(match, timeout=60000)
+                page.wait_for_timeout(8000)
+
+                # buscar iframe
+                iframe = page.query_selector("iframe")
+
+                if iframe:
+                    src = iframe.get_attribute("src")
+
+                    if src and "player" in src:
+                        players.append({
+                            "match": match,
+                            "player": src
                         })
-
-                page.on("request", handle_request)
-
-                el.click(timeout=5000)
-                page.wait_for_timeout(5000)
-
-                page.go_back()
-                page.wait_for_timeout(3000)
 
             except:
                 pass
 
         browser.close()
 
-    # limpiar duplicados
-    unique = []
-    seen = set()
-
-    for r in results:
-        if r["player"] not in seen:
-            seen.add(r["player"])
-            unique.append(r)
-
-    DATA["matches"] = unique
-
+    DATA["matches"] = players
 
 def loop_scraper():
     while True:
