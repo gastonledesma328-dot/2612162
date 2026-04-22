@@ -26,39 +26,33 @@ def scrape():
 
         page = context.new_page()
 
-        # 🔹 PASO 1: obtener partidos
+        # PASO 1: obtener partidos
         page.goto("https://www.fctv33hd.best/es/football.html", timeout=60000)
-        page.wait_for_timeout(12000)
+        page.wait_for_timeout(8000)
 
         links = page.query_selector_all("a[href*='/football/']")
 
         match_links = []
 
-        for a in links[:10]:  # limitar por rendimiento
-            href = a.get_attribute("href")
-            if href:
-                match_links.append("https://www.fctv33hd.best" + href)
+        for a in links[:10]:
+            try:
+                href = a.get_attribute("href")
+                if href:
+                    match_links.append("https://www.fctv33hd.best" + href)
+            except:
+                pass
 
-        # 🔹 PASO 2: entrar a cada partido
+        # PASO 2: entrar a cada partido
         for match in match_links:
             try:
                 page.goto(match, timeout=60000)
 
-                # 🔥 esperar el iframe REAL
-                page.wait_for_selector("iframe", timeout=15000)
+                page.wait_for_timeout(8000)
 
                 frames = page.query_selector_all("iframe")
 
-for f in frames:
-    src = f.get_attribute("src")
-    if src and "player.html" in src:
-        results.append({
-            "match": match,
-            "player": src
-        })
-
-                if iframe:
-                    src = iframe.get_attribute("src")
+                for f in frames:
+                    src = f.get_attribute("src")
 
                     if src and "player.html" in src:
                         results.append({
@@ -66,13 +60,14 @@ for f in frames:
                             "player": src
                         })
 
-            except:
-                pass
+            except Exception as e:
+                print("Error en match:", match, e)
+                continue
 
         browser.close()
 
     DATA["matches"] = results
-
+    
 def loop_scraper():
     while True:
         try:
