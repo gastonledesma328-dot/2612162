@@ -12,6 +12,8 @@ DATA = {
 def scrape():
     global DATA
 
+    results = []
+
     with sync_playwright() as p:
         browser = p.chromium.launch(
             headless=True,
@@ -24,39 +26,34 @@ def scrape():
 
         page = context.new_page()
 
+        # 🔥 interceptar requests
+        def handle_request(request):
+            url = request.url
+
+            if "player.html" in url and "mdata=" in url:
+                results.append({
+                    "player": url
+                })
+
+        page.on("request", handle_request)
+
         page.goto("https://www.fctv33hd.best/es/football.html", timeout=60000)
 
-        # esperar que cargue JS
-        page.wait_for_timeout(10000)
-
-        matches = []
-
-        # 🔥 buscar bloques de partidos (ajustable)
-        items = page.query_selector_all("div, li")
-
-        for item in items:
-            try:
-                text = item.inner_text().strip()
-
-                # filtramos cosas vacías o irrelevantes
-                if len(text) < 5:
-                    continue
-
-                # buscar si tiene onclick o evento
-                onclick = item.get_attribute("onclick")
-
-                if onclick:
-                    matches.append({
-                        "title": text,
-                        "player": onclick
-                    })
-
-            except:
-                pass
-
-        DATA["matches"] = matches
+        # esperar que cargue todo
+        page.wait_for_timeout(15000)
 
         browser.close()
+
+    # eliminar duplicados
+    unique = []
+    seen = set()
+
+    for r in results:
+        if r["player"] not in seen:
+            seen.add(r["player"])
+            unique.append(r)
+
+    DATA["matches"] = unique
 
 
 def loop_scraper():
