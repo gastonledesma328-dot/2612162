@@ -29,12 +29,21 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
+# Copiar requirements primero (mejor caché)
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
 
-# Instalar Chromium para Playwright
-RUN playwright install chromium
-RUN playwright install-deps
+# Instalar dependencias Python con versiones específicas
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir \
+    fastapi==0.104.1 \
+    uvicorn[standard]==0.24.0 \
+    playwright==1.40.0 \
+    pydantic==2.5.0 \
+    python-multipart==0.0.6
+
+# Instalar Playwright browsers
+RUN playwright install chromium && \
+    playwright install-deps
 
 COPY . .
 
