@@ -11,6 +11,7 @@ from collections import deque
 import requests
 from bs4 import BeautifulSoup
 import re
+from urllib.parse import urljoin, urlparse
 
 # Configuración de logging
 logging.basicConfig(
@@ -20,10 +21,30 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class Config:
-    BASE_URL = os.getenv("BASE_URL", "https://www.fctv33hd.best")
-    MAX_MATCHES = int(os.getenv("MAX_MATCHES", "20"))
+    # URLs base que funcionan
+    BASE_URLS = [
+        "https://nia21bp.2wruedoublej4l6adjective.sbs",
+        "https://may01bp.2f17ubowlsjn46easier.cfd"
+    ]
+    MAX_MATCHES = int(os.getenv("MAX_MATCHES", "30"))
     REQUEST_TIMEOUT = int(os.getenv("REQUEST_TIMEOUT", "30"))
-    USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    
+    # Headers mejorados para evitar bloqueo
+    HEADERS = {
+        'User-Agent': USER_AGENT,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
+        'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'DNT': '1',
+        'Connection': 'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
+        'Sec-Fetch-Dest': 'document',
+        'Sec-Fetch-Mode': 'navigate',
+        'Sec-Fetch-Site': 'none',
+        'Sec-Fetch-User': '?1',
+        'Cache-Control': 'max-age=0'
+    }
 
 class MatchStorage:
     def __init__(self):
@@ -68,125 +89,129 @@ class MatchStorage:
 storage = MatchStorage()
 
 def scrape_matches():
-    """Scraping usando requests + BeautifulSoup (sin Playwright)"""
+    """Scraping usando las URLs que funcionan"""
     results = []
     
     try:
         storage.add_log("🌐 Iniciando scraping con requests...")
         session = requests.Session()
-        session.headers.update({
-            'User-Agent': Config.USER_AGENT,
-            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'Accept-Language': 'es-ES,es;q=0.8,en-US;q=0.5,en;q=0.3',
-            'Accept-Encoding': 'gzip, deflate, br',
-            'DNT': '1',
-            'Connection': 'keep-alive',
-            'Upgrade-Insecure-Requests': '1'
-        })
+        session.headers.update(Config.HEADERS)
         
-        # Paso 1: Obtener página principal de fútbol
-        football_url = f"{Config.BASE_URL}/es/football.html"
-        storage.add_log(f"📡 Obteniendo: {football_url}")
-        
-        try:
-            response = session.get(football_url, timeout=Config.REQUEST_TIMEOUT)
-            response.raise_for_status()
-            storage.add_log(f"✅ Respuesta recibida (status: {response.status_code})")
-        except requests.RequestException as e:
-            storage.add_log(f"❌ Error obteniendo página: {str(e)[:80]}")
-            return []
-        
-        # Parsear HTML
-        soup = BeautifulSoup(response.text, 'html.parser')
-        storage.add_log("🔍 Parseando HTML...")
-        
-        # Buscar enlaces de partidos
-        match_urls = []
-        
-        # Estrategia 1: Buscar enlaces que contengan '/football/'
-        for a in soup.find_all('a', href=True):
-            href = a['href']
-            if '/football/' in href and href not in match_urls:
-                if href.startswith('/'):
-                    full_url = Config.BASE_URL + href
-                elif href.startswith('http'):
-                    full_url = href
-                else:
-                    continue
-                
-                if 'football' in full_url and full_url not in match_urls:
-                    match_urls.append(full_url)
-        
-        storage.add_log(f"📊 Enlaces de partidos encontrados: {len(match_urls)}")
-        
-        if not match_urls:
-            storage.set_error("No se encontraron enlaces de partidos")
-            return []
-        
-        # Limitar cantidad
-        match_urls = match_urls[:Config.MAX_MATCHES]
-        
-        # Paso 2: Procesar cada partido
-        for idx, match_url in enumerate(match_urls, 1):
-            storage.add_log(f"🔄 Procesando {idx}/{len(match_urls)}")
+        # Probar cada URL base
+        for base_url in Config.BASE_URLS:
+            storage.add_log(f"📡 Probando URL base: {base_url}")
+            
+            # Intentar obtener la página de fútbol
+            football_url = f"{base_url}/es/football.html"
             
             try:
-                # Obtener página del partido
-                match_response = session.get(match_url, timeout=Config.REQUEST_TIMEOUT)
-                match_response.raise_for_status()
+                response = session.get(football_url, timeout=Config.REQUEST_TIMEOUT)
                 
-                match_soup = BeautifulSoup(match_response.text, 'html.parser')
-                
-                # Buscar iframes
-                player_url = None
-                
-                # Buscar en iframes
-                for iframe in match_soup.find_all('iframe'):
-                    src = iframe.get('src', '')
-                    if src and any(keyword in src.lower() for keyword in ['player', 'embed', 'live', 'stream']):
-                        if src.startswith('//'):
-                            src = 'https:' + src
-                        player_url = src
-                        break
-                
-                # Si no hay iframe, buscar en otros elementos
-                if not player_url:
-                    # Buscar en divs con data attributes
-                    for div in match_soup.find_all(['div', 'section'], attrs={'data-src': True, 'data-url': True}):
-                        src = div.get('data-src') or div.get('data-url')
-                        if src and any(keyword in src.lower() for keyword in ['player', 'embed', 'live']):
-                            player_url = src
-                            break
+                if response.status_code == 200:
+                    storage.add_log(f"✅ Conexión exitosa con {base_url}")
+                    soup = BeautifulSoup(response.text, 'html.parser')
                     
-                    # Buscar en scripts
-                    if not player_url:
-                        scripts = match_soup.find_all('script')
-                        for script in scripts:
-                            if script.string:
-                                # Buscar URLs de player en scripts
-                                match = re.search(r'(https?://[^\s"\']+player[^\s"\']+)', script.string)
-                                if match:
-                                    player_url = match.group(1)
-                                    break
-                
-                if player_url:
-                    results.append({
-                        "match_url": match_url,
-                        "player_url": player_url,
-                        "scraped_at": datetime.now().isoformat()
-                    })
-                    storage.add_log(f"  ✅ Player encontrado: {player_url[:60]}...")
+                    # Buscar enlaces de partidos
+                    match_links = []
+                    
+                    # Buscar enlaces que contengan /football/
+                    for a in soup.find_all('a', href=True):
+                        href = a['href']
+                        if '/football/' in href:
+                            # Construir URL completa
+                            if href.startswith('/'):
+                                full_url = urljoin(base_url, href)
+                            elif href.startswith('http'):
+                                full_url = href
+                            else:
+                                full_url = f"{base_url}/{href}"
+                            
+                            if full_url not in match_links:
+                                match_links.append(full_url)
+                    
+                    storage.add_log(f"📊 Encontrados {len(match_links)} enlaces de partidos")
+                    
+                    if match_links:
+                        # Limitar cantidad
+                        match_links = match_links[:Config.MAX_MATCHES]
+                        
+                        # Procesar cada partido
+                        for idx, match_url in enumerate(match_links, 1):
+                            storage.add_log(f"🔄 Procesando {idx}/{len(match_links)}")
+                            
+                            try:
+                                match_response = session.get(match_url, timeout=Config.REQUEST_TIMEOUT)
+                                if match_response.status_code == 200:
+                                    match_soup = BeautifulSoup(match_response.text, 'html.parser')
+                                    
+                                    # Buscar iframe del reproductor
+                                    player_url = None
+                                    
+                                    # Buscar en iframes
+                                    for iframe in match_soup.find_all('iframe'):
+                                        src = iframe.get('src', '')
+                                        if src:
+                                            if src.startswith('//'):
+                                                src = 'https:' + src
+                                            
+                                            # Buscar player en la URL
+                                            if any(keyword in src.lower() for keyword in ['player', 'embed', 'live', 'stream']):
+                                                player_url = src
+                                                break
+                                    
+                                    # Si no encontró en iframe, buscar en scripts
+                                    if not player_url:
+                                        scripts = match_soup.find_all('script')
+                                        for script in scripts:
+                                            if script.string:
+                                                # Buscar patrones de URL de player
+                                                patterns = [
+                                                    r'(https?://[^\s"\']+player[^\s"\']+)',
+                                                    r'(https?://[^\s"\']+embed[^\s"\']+)',
+                                                    r'(https?://[^\s"\']+live[^\s"\']+)',
+                                                    r'(https?://[^\s"\']+stream[^\s"\']+)'
+                                                ]
+                                                for pattern in patterns:
+                                                    match = re.search(pattern, script.string)
+                                                    if match:
+                                                        player_url = match.group(1)
+                                                        break
+                                            if player_url:
+                                                break
+                                    
+                                    if player_url:
+                                        results.append({
+                                            "match_url": match_url,
+                                            "player_url": player_url,
+                                            "scraped_at": datetime.now().isoformat(),
+                                            "source_base": base_url
+                                        })
+                                        storage.add_log(f"  ✅ Player encontrado")
+                                    else:
+                                        storage.add_log(f"  ⚠️ Sin player")
+                                else:
+                                    storage.add_log(f"  ❌ HTTP {match_response.status_code}")
+                                    
+                            except Exception as e:
+                                storage.add_log(f"  ❌ Error: {str(e)[:50]}")
+                                continue
+                        
+                        if results:
+                            break  # Salir si encontramos resultados
+                    else:
+                        storage.add_log(f"⚠️ No se encontraron enlaces en {base_url}")
                 else:
-                    storage.add_log(f"  ⚠️ No se encontró player")
+                    storage.add_log(f"❌ {base_url} respondió con {response.status_code}")
                     
             except requests.RequestException as e:
-                storage.add_log(f"  ❌ Error en {match_url[:50]}: {str(e)[:50]}")
-                continue
-            except Exception as e:
-                storage.add_log(f"  ❌ Error inesperado: {str(e)[:50]}")
+                storage.add_log(f"❌ Error con {base_url}: {str(e)[:80]}")
                 continue
         
-        storage.add_log(f"✨ Scraping completado: {len(results)} players encontrados")
+        if results:
+            storage.add_log(f"✨ Scraping completado: {len(results)} players encontrados")
+        else:
+            storage.add_log("⚠️ No se encontraron resultados en ninguna URL")
+            
         return results
         
     except Exception as e:
@@ -210,15 +235,6 @@ def run_scraper():
             storage.update(results)
         else:
             storage.add_log("⚠️ No se obtuvieron resultados")
-            # Si no hay resultados, intentar con URL alternativa
-            storage.add_log("🔄 Intentando con URL base alternativa...")
-            original_base = Config.BASE_URL
-            Config.BASE_URL = "https://fctv33hd.best"
-            results = scrape_matches()
-            if results:
-                storage.update(results)
-            else:
-                Config.BASE_URL = original_base
             
     except Exception as e:
         storage.add_log(f"💥 Error en run_scraper: {str(e)}")
