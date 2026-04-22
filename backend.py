@@ -28,7 +28,7 @@ def scrape():
 
         # 🔹 PASO 1: obtener partidos
         page.goto("https://www.fctv33hd.best/es/football.html", timeout=60000)
-        page.wait_for_timeout(8000)
+        page.wait_for_timeout(12000)
 
         links = page.query_selector_all("a[href*='/football/']")
 
